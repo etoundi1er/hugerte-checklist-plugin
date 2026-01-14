@@ -1,4 +1,4 @@
-# HugeRTE Checklist Plugin
+# HugeRTE/TinyMCE Checklist Plugin (Forever Free)
 
 A lightweight checklist plugin for HugeRTE/TinyMCE that adds interactive checkbox functionality.
 
