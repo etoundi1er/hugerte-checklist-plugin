@@ -10,6 +10,14 @@
     <div style="margin: 2rem auto; max-width: 800px;">
         <h3>HugeRTE Checklist Plugin Demo</h3>
 
+        <div style="margin-top: 1rem; padding: 1rem; background-color: #f5f5f5; border-radius: 4px;">
+            <strong>Checklist Statistics:</strong><br>
+            <span id="stats-total">Total items: 0</span> |
+            <span id="stats-completed">Completed: 0</span> |
+            <span id="stats-pending">Pending: 0</span> |
+            <span id="stats-progress">Progress: 0%</span>
+        </div>
+
         <div style="margin-top: 1rem;">
             <textarea id="js-hugerte"></textarea>
         </div>
@@ -17,23 +25,54 @@
         <div style="margin-top: 1rem;">
             <p>
                 <strong>Checklist Usage:</strong><br>
-                1. Click the checklist button (checkbox icon) in the toolbar to insert a checkbox item.<br>
-                2. Press Enter to add a new checkbox item below.<br>
-                3. Click the checkbox or press Ctrl+Enter (Cmd+Enter on Mac) to toggle the checked state.<br>
-                4. Press Backspace on an empty checkbox item to exit checklist mode.
+                1. Click the checklist button (checkbox icon) in the toolbar to insert a checklist.<br>
+                2. Type your task and press Enter to add a new item.<br>
+                3. Click the checkbox or press Cmd+Enter (Ctrl+Enter on Windows) to toggle completion.<br>
+                4. Press Backspace on an empty item to exit checklist mode.<br>
+                <br>
+                <em>The statistics above update automatically as you interact with checklist items.</em>
             </p>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/hugerte@1.0.9/hugerte.min.js"></script>
-    <script>
+    <script type="module">
+        import checklistPlugin, { onChecklistStateChange, getChecklistItems } from './index.js';
+
         document.addEventListener('DOMContentLoaded', function () {
             hugerte.init({
                 selector: '#js-hugerte',
                 plugins: 'lists',
                 toolbar: 'bold italic underline | checklist | bullist numlist | link unlink',
+                setup: (editor) => {
+                    // Register the checklist plugin
+                    checklistPlugin(editor);
+
+                    // Listen to checklist state changes and update statistics
+                    onChecklistStateChange((event) => {
+                        updateChecklistStats(editor);
+                    });
+
+                    // Update stats on other editor events
+                    editor.on('SetContent Change', () => {
+                        updateChecklistStats(editor);
+                    });
+                }
             });
         });
+
+        function updateChecklistStats(editor) {
+            const items = getChecklistItems(editor.getBody());
+            const total = items.length;
+            const completed = items.filter(item => item.checked).length;
+            const pending = total - completed;
+            const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            document.getElementById('stats-total').textContent = `Total items: ${total}`;
+            document.getElementById('stats-completed').textContent = `Completed: ${completed}`;
+            document.getElementById('stats-pending').textContent = `Pending: ${pending}`;
+            document.getElementById('stats-progress').textContent = `Progress: ${percentage}%`;
+        }
     </script>
 </body>
 </html>
