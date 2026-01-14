@@ -70,6 +70,7 @@ const checklistPlugin = (editor) => {
             doc.head.appendChild(style)
         }
     })
+
     // Register the checklist commands
     editor.addCommand('toggleChecklist', (ui, value) => {
         const selection = editor.selection
@@ -340,6 +341,9 @@ function exitChecklistAndCreateParagraph(editor, liElement) {
     // Remove the empty list item
     liElement.remove()
 
+    // Store reference to current list before any modifications
+    let currentList = ul
+
     // If there are items after, create a new list with them
     if (itemsAfter.length > 0) {
         const newUl = editor.dom.create('ul', { class: 'tox-checklist', id: generateChecklistId() })
@@ -356,34 +360,36 @@ function exitChecklistAndCreateParagraph(editor, liElement) {
     // If the original list is now empty, remove it
     if (ul.querySelectorAll('li').length === 0) {
         ul.remove()
+        currentList = null
     }
 
-    // Check if there's already an empty paragraph after the first list
-    const firstList = ulParent.querySelector('ul.tox-checklist')
-    let p = firstList ? firstList.nextSibling : ul.nextSibling
+    // Check if there's already an empty paragraph directly after the current list
+    let p = currentList ? currentList.nextSibling : null
     const shouldCreateNew = !p || p.tagName !== 'P' || p.textContent.trim() !== ''
 
     if (shouldCreateNew) {
-        // Create a new paragraph between the lists (or after if only one list)
+        // Create a new paragraph directly after the current list
         p = editor.dom.create('p')
-        if (firstList) {
-            firstList.parentNode.insertBefore(p, firstList.nextSibling)
+        if (currentList) {
+            currentList.parentNode.insertBefore(p, currentList.nextSibling)
         } else if (ulParent) {
             ulParent.insertBefore(p, ulParent.firstChild)
         }
     }
 
     // If the paragraph is empty, add a bogus br element for editing
-    if (p.textContent.trim() === '') {
+    if (p && p.textContent.trim() === '') {
         const br = editor.dom.create('br', { 'data-mce-bogus': '1' })
         p.appendChild(br)
     }
 
     // Set cursor at the start of the paragraph
-    const rng = editor.dom.createRng()
-    rng.setStart(p, 0)
-    rng.collapse(true)
-    editor.selection.setRng(rng)
+    if (p) {
+        const rng = editor.dom.createRng()
+        rng.setStart(p, 0)
+        rng.collapse(true)
+        editor.selection.setRng(rng)
+    }
 
     // Force focus on the editor
     editor.focus()
