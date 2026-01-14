@@ -35,6 +35,7 @@ const checklistStyles = `
         display: inline-block;
         cursor: pointer;
         margin-right: 0.5em;
+        width: 0.952em;
     }
 
     ul.tox-checklist .tox-checklist-item[data-checked="true"]::before {
@@ -329,17 +330,29 @@ function exitChecklistAndCreateParagraph(editor, liElement) {
         ul.remove()
     }
 
-    // Create a new paragraph after the list
-    const p = editor.dom.create('p')
-    if (ul.parentNode) {
-        // List still exists, insert after it
-        ul.parentNode.insertBefore(p, ul.nextSibling)
-    } else {
-        // List was removed, insert as next sibling of where it was
-        ulParent.insertBefore(p, ul.nextSibling)
+    // Check if there's already an empty paragraph after the list
+    let p = ul.nextSibling
+    const shouldCreateNew = !p || p.tagName !== 'P' || p.textContent.trim() !== ''
+
+    if (shouldCreateNew) {
+        // Create a new paragraph after the list
+        p = editor.dom.create('p')
+        if (ul.parentNode) {
+            // List still exists, insert after it
+            ul.parentNode.insertBefore(p, ul.nextSibling)
+        } else {
+            // List was removed, insert as next sibling of where it was
+            ulParent.insertBefore(p, ul.nextSibling)
+        }
     }
 
-    // Set cursor at the start of the new paragraph
+    // If the paragraph is empty, add a bogus br element for editing
+    if (p.textContent.trim() === '') {
+        const br = editor.dom.create('br', { 'data-mce-bogus': '1' })
+        p.appendChild(br)
+    }
+
+    // Set cursor at the start of the paragraph
     const rng = editor.dom.createRng()
     rng.setStart(p, 0)
     rng.collapse(true)
