@@ -10,6 +10,7 @@ const checklistStyles = `
     ul.tox-checklist {
         list-style: none;
         list-style-type: none;
+        margin-bottom: 1em;
     }
 
     ul.tox-checklist li {
@@ -21,13 +22,19 @@ const checklistStyles = `
         list-style: none;
         list-style-type: none;
         position: relative;
-        cursor: pointer;
+        padding: 0.1em 0;
+        margin: 0;
+        line-height: 1;
+        min-height: 1.40rem;
+        display: flex;
+        align-items: baseline;
     }
 
     ul.tox-checklist .tox-checklist-item::before {
         content: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cg%20id%3D%22checklist-unchecked%22%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Crect%20id%3D%22Rectangle%22%20width%3D%2215%22%20height%3D%2215%22%20x%3D%22.5%22%20y%3D%22.5%22%20fill-rule%3D%22nonzero%22%20stroke%3D%22%234C4C4C%22%20rx%3D%222%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E%0A");
         display: inline-block;
         cursor: pointer;
+        margin-right: 0.5em;
     }
 
     ul.tox-checklist .tox-checklist-item[data-checked="true"]::before {
@@ -35,13 +42,8 @@ const checklistStyles = `
     }
 
     ul.tox-checklist .tox-checklist-text {
-        flex: 1;
+        display: inline;
         word-break: break-word;
-        display: block;
-        margin: 0;
-        padding: 0;
-        outline: none;
-        min-height: 1.5em;
     }
 
     ul.tox-checklist .tox-checklist-item.tox-checklist--checked .tox-checklist-text {
@@ -117,18 +119,26 @@ const checklistPlugin = (editor) => {
             editor.execCommand('toggleChecklistItem')
         }
 
-        // Enter key to create new list item
+        // Enter key to create new list item or exit checklist if item is empty
         if (e.keyCode === 13 && !e.shiftKey) {
-            const span = li.querySelector('.tox-checklist-text')
-            if (!span) return
-
             e.preventDefault()
-            const newLi = createChecklistItem()
-            li.parentNode.insertBefore(newLi, li.nextSibling)
-            // Set cursor in the text span of new item
-            const newSpan = newLi.querySelector('.tox-checklist-text')
-            editor.selection.setCursorLocation(newSpan, 0)
-            editor.setDirty(true)
+            const text = li.textContent.trim()
+            const isEmpty = !text
+
+            if (isEmpty) {
+                // If current item is empty, exit the checklist
+                exitChecklistAndCreateParagraph(editor, li)
+            } else {
+                // Create a new checklist item
+                const newLi = createChecklistItem()
+                li.parentNode.insertBefore(newLi, li.nextSibling)
+                // Set cursor at the beginning of new item
+                const rng = editor.dom.createRng()
+                rng.setStart(newLi, 0)
+                rng.collapse(true)
+                editor.selection.setRng(rng)
+                editor.setDirty(true)
+            }
         }
 
         // Backspace on empty checklist item to exit
@@ -154,7 +164,6 @@ const checklistPlugin = (editor) => {
             // Calculate if click was in the checkbox area (left side before text)
             const rect = li.getBoundingClientRect()
             const clickX = e.clientX - rect.left
-            const textSpan = li.querySelector('.tox-checklist-text')
 
             if (clickX < 40) {
                 // Click was on the left side where checkbox pseudo-element is
@@ -206,9 +215,11 @@ function createChecklist(editor) {
         const li = createChecklistItem()
         ul.appendChild(li)
         node.parentNode.insertBefore(ul, node.nextSibling)
-        // Set cursor in the text span, after the checkbox
-        const span = li.querySelector('.tox-checklist-text')
-        editor.selection.setCursorLocation(span, 0)
+        // Set cursor in the list item
+        const rng = editor.dom.createRng()
+        rng.setStart(li, 0)
+        rng.collapse(true)
+        editor.selection.setRng(rng)
     }
 
     editor.setDirty(true)
@@ -229,12 +240,6 @@ function createChecklistItem(isChecked = false) {
     const li = document.createElement('li')
     li.className = 'tox-checklist-item'
     li.setAttribute('data-checked', isChecked ? 'true' : 'false')
-
-    // Add span for text content - this is where the cursor will be placed
-    const span = document.createElement('span')
-    span.className = 'tox-checklist-text'
-    span.contentEditable = true
-    li.appendChild(span)
 
     if (isChecked) {
         li.classList.add('tox-checklist--checked')
@@ -263,7 +268,7 @@ function fireChecklistStateChange(liElement) {
     const event = {
         element: liElement,
         checked: liElement.getAttribute('data-checked') === 'true',
-        text: liElement.querySelector('.tox-checklist-text')?.textContent || ''
+        text: liElement.textContent || ''
     }
 
     // Call all registered callbacks
@@ -304,6 +309,44 @@ function exitChecklist(editor) {
     })
 
     ul.classList.remove('tox-checklist')
+    editor.setDirty(true)
+}
+
+function exitChecklistAndCreateParagraph(editor, liElement) {
+    const ul = editor.dom.getParent(liElement, 'ul.tox-checklist')
+
+    if (!ul) {
+        return
+    }
+
+    const ulParent = ul.parentNode
+
+    // Remove the empty list item
+    liElement.remove()
+
+    // If the list is now empty, remove it entirely
+    if (ul.querySelectorAll('li').length === 0) {
+        ul.remove()
+    }
+
+    // Create a new paragraph after the list
+    const p = editor.dom.create('p')
+    if (ul.parentNode) {
+        // List still exists, insert after it
+        ul.parentNode.insertBefore(p, ul.nextSibling)
+    } else {
+        // List was removed, insert as next sibling of where it was
+        ulParent.insertBefore(p, ul.nextSibling)
+    }
+
+    // Set cursor at the start of the new paragraph
+    const rng = editor.dom.createRng()
+    rng.setStart(p, 0)
+    rng.collapse(true)
+    editor.selection.setRng(rng)
+
+    // Force focus on the editor
+    editor.focus()
     editor.setDirty(true)
 }
 
@@ -422,7 +465,7 @@ export function getChecklistItems(container) {
     listItems.forEach((li) => {
         items.push({
             element: li,
-            text: li.querySelector('.tox-checklist-text')?.textContent || '',
+            text: li.textContent || '',
             checked: li.getAttribute('data-checked') === 'true'
         })
     })
