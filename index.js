@@ -54,6 +54,11 @@ const checklistStyles = `
 
 // Callback registry for state changes
 let checklistStateChangeCallbacks = []
+let checklistIdCounter = 0
+
+function generateChecklistId() {
+    return `tox-checklist-${++checklistIdCounter}`
+}
 
 const checklistPlugin = (editor) => {
     // Inject CSS into the editor's iframe on initialization
@@ -212,7 +217,7 @@ function createChecklist(editor) {
         convertToChecklist(editor, list)
     } else {
         // Create a new checklist
-        const ul = editor.dom.create('ul', { class: 'tox-checklist' })
+        const ul = editor.dom.create('ul', { class: 'tox-checklist', id: generateChecklistId() })
         const li = createChecklistItem()
         ul.appendChild(li)
         node.parentNode.insertBefore(ul, node.nextSibling)
@@ -228,6 +233,11 @@ function createChecklist(editor) {
 
 function convertToChecklist(editor, list) {
     editor.dom.addClass(list, 'tox-checklist')
+
+    // Assign unique ID if not already present
+    if (!list.id) {
+        list.id = generateChecklistId()
+    }
 
     editor.dom.select('li', list).forEach((li) => {
         if (!li.classList.contains('tox-checklist-item')) {
@@ -322,27 +332,44 @@ function exitChecklistAndCreateParagraph(editor, liElement) {
 
     const ulParent = ul.parentNode
 
+    // Get all items after the current item
+    const allItems = Array.from(ul.querySelectorAll('li.tox-checklist-item'))
+    const currentIndex = allItems.indexOf(liElement)
+    const itemsAfter = allItems.slice(currentIndex + 1)
+
     // Remove the empty list item
     liElement.remove()
 
-    // If the list is now empty, remove it entirely
+    // If there are items after, create a new list with them
+    if (itemsAfter.length > 0) {
+        const newUl = editor.dom.create('ul', { class: 'tox-checklist', id: generateChecklistId() })
+
+        itemsAfter.forEach(item => {
+            newUl.appendChild(item.cloneNode(true))
+        })
+        // Remove items from original list
+        itemsAfter.forEach(item => item.remove())
+        // Insert new list after the original
+        ul.parentNode.insertBefore(newUl, ul.nextSibling)
+    }
+
+    // If the original list is now empty, remove it
     if (ul.querySelectorAll('li').length === 0) {
         ul.remove()
     }
 
-    // Check if there's already an empty paragraph after the list
-    let p = ul.nextSibling
+    // Check if there's already an empty paragraph after the first list
+    const firstList = ulParent.querySelector('ul.tox-checklist')
+    let p = firstList ? firstList.nextSibling : ul.nextSibling
     const shouldCreateNew = !p || p.tagName !== 'P' || p.textContent.trim() !== ''
 
     if (shouldCreateNew) {
-        // Create a new paragraph after the list
+        // Create a new paragraph between the lists (or after if only one list)
         p = editor.dom.create('p')
-        if (ul.parentNode) {
-            // List still exists, insert after it
-            ul.parentNode.insertBefore(p, ul.nextSibling)
-        } else {
-            // List was removed, insert as next sibling of where it was
-            ulParent.insertBefore(p, ul.nextSibling)
+        if (firstList) {
+            firstList.parentNode.insertBefore(p, firstList.nextSibling)
+        } else if (ulParent) {
+            ulParent.insertBefore(p, ulParent.firstChild)
         }
     }
 
