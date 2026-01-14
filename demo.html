@@ -37,17 +37,14 @@
 
     <script src="https://cdn.jsdelivr.net/npm/hugerte@1.0.9/hugerte.min.js"></script>
     <script type="module">
-        import checklistPlugin, { onChecklistStateChange, getChecklistItems } from './index.js';
+        import { onChecklistStateChange, getChecklistItems } from './index.js';
 
         document.addEventListener('DOMContentLoaded', function () {
             hugerte.init({
                 selector: '#js-hugerte',
-                plugins: 'lists',
+                plugins: 'lists checklist',
                 toolbar: 'bold italic underline | checklist | bullist numlist | link unlink',
                 setup: (editor) => {
-                    // Register the checklist plugin
-                    checklistPlugin(editor);
-
                     // Listen to checklist state changes and update statistics
                     onChecklistStateChange((event) => {
                         updateChecklistStats(editor);

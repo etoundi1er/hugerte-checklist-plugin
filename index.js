@@ -8,57 +8,30 @@
 // Injected into the editor's iframe (head) on initialization
 const checklistStyles = `
     ul.tox-checklist {
-        list-style: none !important;
-        list-style-type: none !important;
-        padding: 0 0 0 1.5em;
-        margin: 0.5em 0;
+        list-style: none;
+        list-style-type: none;
     }
 
     ul.tox-checklist li {
-        list-style: none !important;
-        list-style-type: none !important;
-        margin-left: 0 !important;
+        list-style: none;
+        list-style-type: none;
     }
 
     ul.tox-checklist .tox-checklist-item {
-        list-style: none !important;
-        list-style-type: none !important;
-        margin: 0.25em 0;
+        list-style: none;
+        list-style-type: none;
         position: relative;
-        display: flex;
-        align-items: flex-start;
-        padding-left: 0;
         cursor: pointer;
     }
 
     ul.tox-checklist .tox-checklist-item::before {
-        content: '';
+        content: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cg%20id%3D%22checklist-unchecked%22%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Crect%20id%3D%22Rectangle%22%20width%3D%2215%22%20height%3D%2215%22%20x%3D%22.5%22%20y%3D%22.5%22%20fill-rule%3D%22nonzero%22%20stroke%3D%22%234C4C4C%22%20rx%3D%222%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E%0A");
         display: inline-block;
-        flex-shrink: 0;
-        width: 1.25em;
-        height: 1.25em;
-        margin: 0.125em 0.5em 0 0;
-        padding: 0;
-        border: 2px solid #585858ff;
-        border-radius: 3px;
-        background-color: #fff;
         cursor: pointer;
-        transition: all 0.15s ease-in-out;
-        box-sizing: border-box;
-    }
-
-    ul.tox-checklist .tox-checklist-item:hover::before {
-        border-color: #3471c6;
-        box-shadow: 0 0 0 2px rgba(52, 113, 198, 0.1);
     }
 
     ul.tox-checklist .tox-checklist-item[data-checked="true"]::before {
         content: url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cg%20id%3D%22checklist-checked%22%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Crect%20id%3D%22Rectangle%22%20width%3D%2216%22%20height%3D%2216%22%20fill%3D%22%234099FF%22%20fill-rule%3D%22nonzero%22%20rx%3D%222%22%2F%3E%3Cpath%20id%3D%22Path%22%20fill%3D%22%23FFF%22%20fill-rule%3D%22nonzero%22%20d%3D%22M11.5703186%2C3.14417309%20C11.8516238%2C2.73724603%2012.4164781%2C2.62829933%2012.83558%2C2.89774797%20C13.260121%2C3.17069355%2013.3759736%2C3.72932262%2013.0909105%2C4.14168582%20L7.7580587%2C11.8560195%20C7.43776896%2C12.3193404%206.76483983%2C12.3852142%206.35607322%2C11.9948725%20L3.02491697%2C8.8138662%20C2.66090143%2C8.46625845%202.65798871%2C7.89594698%203.01850234%2C7.54483354%20C3.373942%2C7.19866177%203.94940006%2C7.19592841%204.30829608%2C7.5386474%20L6.85276923%2C9.9684299%20L11.5703186%2C3.14417309%20Z%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E%0A');
-        background-color: #3471c6;
-        border-color: #3471c6;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: 0.8em 0.8em;
     }
 
     ul.tox-checklist .tox-checklist-text {
@@ -68,7 +41,6 @@ const checklistStyles = `
         margin: 0;
         padding: 0;
         outline: none;
-        line-height: 1.5;
         min-height: 1.5em;
     }
 
@@ -458,5 +430,12 @@ export function getChecklistItems(container) {
     return items
 }
 
-// Export the plugin function
+// Auto-register the plugin with TinyMCE/HugeRTE when this module loads
+if (typeof tinymce !== 'undefined' && tinymce.PluginManager) {
+    tinymce.PluginManager.add('checklist', checklistPlugin)
+} else if (typeof hugerte !== 'undefined' && hugerte.PluginManager) {
+    hugerte.PluginManager.add('checklist', checklistPlugin)
+}
+
+// Export the plugin function for manual use
 export default checklistPlugin
