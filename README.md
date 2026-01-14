@@ -2,6 +2,8 @@
 
 A lightweight checklist plugin for HugeRTE/TinyMCE that adds interactive checkbox functionality.
 
+[See Demo](https://etoundi1er.github.io/hugerte-checklist-plugin/demo.html)
+
 ## Installation
 
 ```bash
