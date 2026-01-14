@@ -124,6 +124,10 @@ const percentage = Math.round((completed / total) * 100)
 console.log(`Progress: ${percentage}% (${completed}/${total})`)
 ```
 
+## Local server
+
+`python3 -m http.server 8000`
+
 ## License
 
 MIT

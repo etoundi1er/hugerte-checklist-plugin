@@ -56,8 +56,46 @@ const checklistStyles = `
 let checklistStateChangeCallbacks = []
 let checklistIdCounter = 0
 
+// Constants
+const CHECKLIST_SELECTOR = 'ul.tox-checklist'
+const CHECKLIST_ITEM_SELECTOR = 'li.tox-checklist-item'
+const CHECKBOX_CLICK_AREA = 40
+
+// Helper functions
 function generateChecklistId() {
     return `tox-checklist-${++checklistIdCounter}`
+}
+
+function getChecklistItem(editor, node) {
+    const li = editor.dom.getParent(node || editor.selection.getNode(), 'li')
+    if (!li || !editor.dom.getParent(li, CHECKLIST_SELECTOR)) {
+        return null
+    }
+    return li
+}
+
+function isChecked(element) {
+    return element.getAttribute('data-checked') === 'true'
+}
+
+function setChecked(element, checked) {
+    element.setAttribute('data-checked', checked ? 'true' : 'false')
+    element.classList.toggle('tox-checklist--checked', checked)
+}
+
+function isEmptyItem(li) {
+    return !li.textContent.trim()
+}
+
+function isCaretAtStart(rng) {
+    return rng.startOffset === 0
+}
+
+function setCursorAtStart(editor, element) {
+    const rng = editor.dom.createRng()
+    rng.setStart(element, 0)
+    rng.collapse(true)
+    editor.selection.setRng(rng)
 }
 
 const checklistPlugin = (editor) => {
@@ -89,10 +127,8 @@ const checklistPlugin = (editor) => {
     })
 
     editor.addCommand('toggleChecklistItem', (ui, value) => {
-        const node = editor.selection.getNode()
-        const li = editor.dom.getParent(node, 'li')
-
-        if (li && editor.dom.getParent(li, 'ul.tox-checklist')) {
+        const li = getChecklistItem(editor)
+        if (li) {
             toggleCheckboxState(li)
         }
     })
@@ -113,89 +149,58 @@ const checklistPlugin = (editor) => {
 
     // Handle keyboard shortcuts
     editor.on('KeyDown', (e) => {
-        const node = editor.selection.getNode()
-        const li = editor.dom.getParent(node, 'li')
-
-        if (!li || !editor.dom.getParent(li, 'ul.tox-checklist')) {
-            return
-        }
+        const li = getChecklistItem(editor)
+        if (!li) return
 
         // Ctrl+Enter or Cmd+Enter to toggle checkbox
         if ((e.ctrlKey || e.metaKey) && e.keyCode === 13) {
             e.preventDefault()
             editor.execCommand('toggleChecklistItem')
+            return
         }
 
         // Enter key to create new list item or exit checklist if item is empty
         if (e.keyCode === 13 && !e.shiftKey) {
             e.preventDefault()
-            const text = li.textContent.trim()
-            const isEmpty = !text
-
-            if (isEmpty) {
-                // If current item is empty, exit the checklist
+            if (isEmptyItem(li)) {
                 exitChecklistAndCreateParagraph(editor, li)
             } else {
-                // Create a new checklist item
                 const newLi = createChecklistItem()
                 li.parentNode.insertBefore(newLi, li.nextSibling)
-                // Set cursor at the beginning of new item
-                const rng = editor.dom.createRng()
-                rng.setStart(newLi, 0)
-                rng.collapse(true)
-                editor.selection.setRng(rng)
+                setCursorAtStart(editor, newLi)
                 editor.setDirty(true)
             }
+            return
         }
 
         // Backspace on empty checklist item to exit
-        if (e.keyCode === 8) {
-            const text = li.textContent.trim()
-            const isEmpty = !text
+        if (e.keyCode === 8 && isEmptyItem(li) && isCaretAtStart(editor.selection.getRng())) {
+            e.preventDefault()
+            exitChecklist(editor)
+            return
+        }
 
-            if (isEmpty) {
-                const caretPosition = editor.selection.getRng()
-                // Check if cursor is at the beginning
-                if (caretPosition.startOffset === 0) {
-                    e.preventDefault()
-                    exitChecklist(editor)
-                }
-            }
+        // Spacebar at start to toggle checkbox
+        if (e.keyCode === 32 && isCaretAtStart(editor.selection.getRng())) {
+            e.preventDefault()
+            toggleCheckboxState(li)
+            editor.setDirty(true)
         }
     })
 
     // Handle checkbox clicks via mousedown on the checkbox area
     editor.on('mousedown', (e) => {
-        const li = editor.dom.getParent(e.target, 'li.tox-checklist-item')
-        if (li && editor.dom.getParent(li, 'ul.tox-checklist')) {
-            // Calculate if click was in the checkbox area (left side before text)
+        const li = editor.dom.getParent(e.target, CHECKLIST_ITEM_SELECTOR)
+        if (li && editor.dom.getParent(li, CHECKLIST_SELECTOR)) {
             const rect = li.getBoundingClientRect()
             const clickX = e.clientX - rect.left
 
-            if (clickX < 40) {
-                // Click was on the left side where checkbox pseudo-element is
+            if (clickX < CHECKBOX_CLICK_AREA) {
                 e.preventDefault()
                 e.stopPropagation()
                 toggleCheckboxState(li)
                 editor.setDirty(true)
                 return false
-            }
-        }
-    })
-
-    // Also handle keyboard spacebar on checklist item to toggle
-    editor.on('keydown', (e) => {
-        if (e.keyCode === 32) {
-            // Spacebar
-            const li = editor.dom.getParent(editor.selection.getNode(), 'li.tox-checklist-item')
-            if (li && editor.dom.getParent(li, 'ul.tox-checklist')) {
-                // Only toggle if cursor is at the very beginning
-                const rng = editor.selection.getRng()
-                if (rng.startOffset === 0) {
-                    e.preventDefault()
-                    toggleCheckboxState(li)
-                    editor.setDirty(true)
-                }
             }
         }
     })
@@ -222,11 +227,7 @@ function createChecklist(editor) {
         const li = createChecklistItem()
         ul.appendChild(li)
         node.parentNode.insertBefore(ul, node.nextSibling)
-        // Set cursor in the list item
-        const rng = editor.dom.createRng()
-        rng.setStart(li, 0)
-        rng.collapse(true)
-        editor.selection.setRng(rng)
+        setCursorAtStart(editor, li)
     }
 
     editor.setDirty(true)
@@ -235,7 +236,6 @@ function createChecklist(editor) {
 function convertToChecklist(editor, list) {
     editor.dom.addClass(list, 'tox-checklist')
 
-    // Assign unique ID if not already present
     if (!list.id) {
         list.id = generateChecklistId()
     }
@@ -243,47 +243,31 @@ function convertToChecklist(editor, list) {
     editor.dom.select('li', list).forEach((li) => {
         if (!li.classList.contains('tox-checklist-item')) {
             li.classList.add('tox-checklist-item')
-            li.setAttribute('data-checked', 'false')
+            setChecked(li, false)
         }
     })
 }
 
-function createChecklistItem(isChecked = false) {
+function createChecklistItem(checked = false) {
     const li = document.createElement('li')
     li.className = 'tox-checklist-item'
-    li.setAttribute('data-checked', isChecked ? 'true' : 'false')
-
-    if (isChecked) {
-        li.classList.add('tox-checklist--checked')
-    }
-
+    setChecked(li, checked)
     return li
 }
 
 function toggleCheckboxState(liElement) {
-    const currentState = liElement.getAttribute('data-checked') === 'true'
-    const newState = !currentState
-
-    liElement.setAttribute('data-checked', newState ? 'true' : 'false')
-
-    if (newState) {
-        liElement.classList.add('tox-checklist--checked')
-    } else {
-        liElement.classList.remove('tox-checklist--checked')
-    }
-
-    // Fire callbacks to notify listeners of state change
+    const newState = !isChecked(liElement)
+    setChecked(liElement, newState)
     fireChecklistStateChange(liElement)
 }
 
 function fireChecklistStateChange(liElement) {
     const event = {
         element: liElement,
-        checked: liElement.getAttribute('data-checked') === 'true',
+        checked: isChecked(liElement),
         text: liElement.textContent || ''
     }
 
-    // Call all registered callbacks
     checklistStateChangeCallbacks.forEach((callback) => {
         try {
             callback(event)
@@ -292,29 +276,19 @@ function fireChecklistStateChange(liElement) {
         }
     })
 
-    // Also dispatch a custom event on the element
-    const customEvent = new CustomEvent('checklistStateChange', {
+    liElement.dispatchEvent(new CustomEvent('checklistStateChange', {
         detail: event,
         bubbles: true
-    })
-    liElement.dispatchEvent(customEvent)
+    }))
 }
 
 function exitChecklist(editor) {
-    const node = editor.selection.getNode()
-    const li = editor.dom.getParent(node, 'li')
+    const li = getChecklistItem(editor)
+    if (!li) return
 
-    if (!li) {
-        return
-    }
+    const ul = editor.dom.getParent(li, CHECKLIST_SELECTOR)
+    if (!ul) return
 
-    const ul = editor.dom.getParent(li, 'ul.tox-checklist')
-
-    if (!ul) {
-        return
-    }
-
-    // Convert all checklist items back to regular text
     editor.dom.select('li', ul).forEach((item) => {
         item.classList.remove('tox-checklist-item', 'tox-checklist--checked')
         item.removeAttribute('data-checked')
@@ -325,50 +299,34 @@ function exitChecklist(editor) {
 }
 
 function exitChecklistAndCreateParagraph(editor, liElement) {
-    const ul = editor.dom.getParent(liElement, 'ul.tox-checklist')
-
-    if (!ul) {
-        return
-    }
+    const ul = editor.dom.getParent(liElement, CHECKLIST_SELECTOR)
+    if (!ul) return
 
     const ulParent = ul.parentNode
-
-    // Get all items after the current item
-    const allItems = Array.from(ul.querySelectorAll('li.tox-checklist-item'))
+    const allItems = Array.from(ul.querySelectorAll(CHECKLIST_ITEM_SELECTOR))
     const currentIndex = allItems.indexOf(liElement)
     const itemsAfter = allItems.slice(currentIndex + 1)
 
-    // Remove the empty list item
     liElement.remove()
 
-    // Store reference to current list before any modifications
     let currentList = ul
 
-    // If there are items after, create a new list with them
+    // Move items after to a new list
     if (itemsAfter.length > 0) {
         const newUl = editor.dom.create('ul', { class: 'tox-checklist', id: generateChecklistId() })
-
-        itemsAfter.forEach(item => {
-            newUl.appendChild(item.cloneNode(true))
-        })
-        // Remove items from original list
-        itemsAfter.forEach(item => item.remove())
-        // Insert new list after the original
+        itemsAfter.forEach(item => newUl.appendChild(item))
         ul.parentNode.insertBefore(newUl, ul.nextSibling)
     }
 
-    // If the original list is now empty, remove it
+    // Remove empty list
     if (ul.querySelectorAll('li').length === 0) {
         ul.remove()
         currentList = null
     }
 
-    // Check if there's already an empty paragraph directly after the current list
-    let p = currentList ? currentList.nextSibling : null
-    const shouldCreateNew = !p || p.tagName !== 'P' || p.textContent.trim() !== ''
-
-    if (shouldCreateNew) {
-        // Create a new paragraph directly after the current list
+    // Create or find paragraph
+    let p = currentList?.nextSibling
+    if (!p || p.tagName !== 'P' || p.textContent.trim()) {
         p = editor.dom.create('p')
         if (currentList) {
             currentList.parentNode.insertBefore(p, currentList.nextSibling)
@@ -377,21 +335,16 @@ function exitChecklistAndCreateParagraph(editor, liElement) {
         }
     }
 
-    // If the paragraph is empty, add a bogus br element for editing
-    if (p && p.textContent.trim() === '') {
-        const br = editor.dom.create('br', { 'data-mce-bogus': '1' })
-        p.appendChild(br)
+    // Add bogus br if empty, it helps ensure correct cursor placement
+    if (p && !p.textContent.trim()) {
+        p.appendChild(editor.dom.create('br', { 'data-mce-bogus': '1' }))
     }
 
-    // Set cursor at the start of the paragraph
+    // Set cursor
     if (p) {
-        const rng = editor.dom.createRng()
-        rng.setStart(p, 0)
-        rng.collapse(true)
-        editor.selection.setRng(rng)
+        setCursorAtStart(editor, p)
     }
 
-    // Force focus on the editor
     editor.focus()
     editor.setDirty(true)
 }
@@ -505,18 +458,11 @@ export function onChecklistStateChange(callback) {
 export function getChecklistItems(container) {
     if (!container) return []
 
-    const items = []
-    const listItems = container.querySelectorAll('li.tox-checklist-item')
-
-    listItems.forEach((li) => {
-        items.push({
-            element: li,
-            text: li.textContent || '',
-            checked: li.getAttribute('data-checked') === 'true'
-        })
-    })
-
-    return items
+    return Array.from(container.querySelectorAll(CHECKLIST_ITEM_SELECTOR)).map((li) => ({
+        element: li,
+        text: li.textContent || '',
+        checked: isChecked(li)
+    }))
 }
 
 // Auto-register the plugin with TinyMCE/HugeRTE when this module loads
