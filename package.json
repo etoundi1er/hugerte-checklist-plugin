@@ -1,0 +1,38 @@
+{
+  "name": "@etoundi1er/hugerte-checklist-plugin",
+  "version": "1.0.0",
+  "description": "A plugin for HugeRTE to add checklist functionality",
+  "keywords": [
+    "tinymce",
+    "hugerte",
+    "checklist",
+    "plugin",
+  ],
+  "homepage": "https://github.com/etoundi1er/hugerte-checklist-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/etoundi1er/hugerte-checklist-plugin/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/etoundi1er/hugerte-checklist-plugin.git"
+  },
+  "license": "MIT",
+  "author": "Frank Etoundi <frank.etoundi@gmail.com> (https://www.etoundi.com/)",
+  "type": "commonjs",
+  "main": "index.js",
+  "browser": "hugerte-checklist-plugin.browser.js",
+  "files": [
+    "index.js",
+    "hugerte-checklist-plugin.browser.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build:browser": "node build-browser.js",
+    "prebuild": "npm run build:browser",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
