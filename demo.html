@@ -103,8 +103,10 @@
                 toolbar: 'bold italic underline | checklist bullist numlist | link unlink',
                 setup: (editor) => {
                     // Listen to checklist state changes and update statistics
-                    onChecklistStateChange((event) => {
-                        updateChecklistStats(editor);
+                    // The callback is scoped to this editor instance only
+                    onChecklistStateChange(editor, (event) => {
+                        // event.editor is also available if needed
+                        updateChecklistStats(event.editor);
                     });
 
                     // Update stats on other editor events

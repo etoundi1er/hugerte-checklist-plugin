@@ -20,8 +20,9 @@ hugerte.init({
     plugins: 'lists checklist',
     toolbar: 'checklist bullist numlist',
     setup: (editor) => {
-        // Listen to checklist state changes
-        onChecklistStateChange((event) => {
+        // Listen to checklist state changes (scoped to this editor)
+        onChecklistStateChange(editor, (event) => {
+            console.log('Editor:', event.editor.id);
             console.log('Item toggled:', event.text, event.checked);
         });
     }
@@ -36,40 +37,71 @@ hugerte.init({
 
 ## API
 
-### `onChecklistStateChange(callback)`
-Register a callback for checkbox state changes.
+### `onChecklistStateChange(editor, callback)`
+Register a callback for checkbox state changes, scoped to a specific editor instance. This ensures that when you have multiple editors on a page, callbacks are only triggered for the editor they were registered with.
+
+**Parameters:**
+- `editor` - The HugeRTE/TinyMCE editor instance
+- `callback` - Function called when a checkbox state changes
+
+**Event object properties:**
+- `editor` - The editor instance where the change occurred
+- `element` - The checkbox `<li>` element
+- `text` - The text content of the checkbox item
+- `checked` - Boolean indicating if the item is checked
 
 ```javascript
-// Basic usage - listen to any checklist state change
-import { onChecklistStateChange } from './hugerte_checklist_plugin.js'
+// Inside setup (most common pattern)
+import { onChecklistStateChange } from '@etoundi1er/hugerte-checklist-plugin'
 
-const unsubscribe = onChecklistStateChange((event) => {
-    console.log('Item:', event.text)
-    console.log('Checked:', event.checked)
-    console.log('Element:', event.element)
+hugerte.init({
+    selector: '#my-editor',
+    plugins: 'lists checklist',
+    toolbar: 'checklist bullist numlist',
+    setup: (editor) => {
+        const unsubscribe = onChecklistStateChange(editor, (event) => {
+            console.log('Editor:', event.editor.id)
+            console.log('Item:', event.text)
+            console.log('Checked:', event.checked)
+            console.log('Element:', event.element)
+        })
+
+        // Later, to stop listening (e.g., on editor remove):
+        editor.on('remove', () => unsubscribe())
+    }
 })
-
-// Later, to stop listening:
-unsubscribe()
 
 // Save checklist state to a backend when items change
-onChecklistStateChange((event) => {
-    fetch('/api/checklist-items', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            id: event.element.id,
-            text: event.text,
-            completed: event.checked
+hugerte.init({
+    selector: '#my-editor',
+    plugins: 'lists checklist',
+    setup: (editor) => {
+        onChecklistStateChange(editor, (event) => {
+            fetch('/api/checklist-items', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: event.element.id,
+                    text: event.text,
+                    completed: event.checked
+                })
+            })
         })
-    })
+    }
 })
 
-// Update UI when checklist items change
-onChecklistStateChange((event) => {
-    const completedCount = document.querySelectorAll('[data-checked="true"]').length
-    const totalCount = document.querySelectorAll('.tox-checklist-item').length
-    document.getElementById('progress').textContent = `${completedCount}/${totalCount}`
+// Update UI when checklist items change (scoped to editor)
+hugerte.init({
+    selector: '#my-editor',
+    plugins: 'lists checklist',
+    setup: (editor) => {
+        onChecklistStateChange(editor, (event) => {
+            const body = event.editor.getBody()
+            const completedCount = body.querySelectorAll('[data-checked="true"]').length
+            const totalCount = body.querySelectorAll('.tox-checklist-item').length
+            document.getElementById('progress').textContent = `${completedCount}/${totalCount}`
+        })
+    }
 })
 ```
 
@@ -78,7 +110,7 @@ Get all checklist items with their state.
 
 ```javascript
 // Get all checklist items from the editor
-import { getChecklistItems } from './hugerte_checklist_plugin.js'
+import { getChecklistItems } from '@etoundi1er/hugerte-checklist-plugin'
 
 const editor = tinymce.get('my-editor')
 const items = getChecklistItems(editor.getBody())

@@ -24,10 +24,10 @@ const checklistStyles = `
         position: relative;
         padding: 0.1em 0;
         margin: 0;
-        line-height: 1;
-        min-height: 1.40rem;
         display: flex;
-        align-items: baseline;
+        min-height: auto;
+        align-items: normal;
+        line-height: normal;
     }
 
     ul.tox-checklist .tox-checklist-item::before {
@@ -52,9 +52,17 @@ const checklistStyles = `
     }
 `
 
-// Callback registry for state changes
-let checklistStateChangeCallbacks = []
+// Callback registry for state changes (per-editor using WeakMap)
+const editorCallbacksMap = new WeakMap()
 let checklistIdCounter = 0
+
+// Helper to get or create callbacks array for an editor
+function getEditorCallbacks(editor) {
+    if (!editorCallbacksMap.has(editor)) {
+        editorCallbacksMap.set(editor, [])
+    }
+    return editorCallbacksMap.get(editor)
+}
 
 // Constants
 const CHECKLIST_SELECTOR = 'ul.tox-checklist'
@@ -129,7 +137,7 @@ const checklistPlugin = (editor) => {
     editor.addCommand('toggleChecklistItem', (ui, value) => {
         const li = getChecklistItem(editor)
         if (li) {
-            toggleCheckboxState(li)
+            toggleCheckboxState(editor, li)
         }
     })
 
@@ -183,7 +191,7 @@ const checklistPlugin = (editor) => {
         // Spacebar at start to toggle checkbox
         if (e.keyCode === 32 && isCaretAtStart(editor.selection.getRng())) {
             e.preventDefault()
-            toggleCheckboxState(li)
+            toggleCheckboxState(editor, li)
             editor.setDirty(true)
         }
     })
@@ -198,7 +206,7 @@ const checklistPlugin = (editor) => {
             if (clickX < CHECKBOX_CLICK_AREA) {
                 e.preventDefault()
                 e.stopPropagation()
-                toggleCheckboxState(li)
+                toggleCheckboxState(editor, li)
                 editor.setDirty(true)
                 return false
             }
@@ -255,20 +263,22 @@ function createChecklistItem(checked = false) {
     return li
 }
 
-function toggleCheckboxState(liElement) {
+function toggleCheckboxState(editor, liElement) {
     const newState = !isChecked(liElement)
     setChecked(liElement, newState)
-    fireChecklistStateChange(liElement)
+    fireChecklistStateChange(editor, liElement)
 }
 
-function fireChecklistStateChange(liElement) {
+function fireChecklistStateChange(editor, liElement) {
     const event = {
+        editor: editor,
         element: liElement,
         checked: isChecked(liElement),
         text: liElement.textContent || ''
     }
 
-    checklistStateChangeCallbacks.forEach((callback) => {
+    const callbacks = getEditorCallbacks(editor)
+    callbacks.forEach((callback) => {
         try {
             callback(event)
         } catch (err) {
@@ -351,14 +361,17 @@ function exitChecklistAndCreateParagraph(editor, liElement) {
 
 /**
  * Public API: Register a callback for checklist state changes
+ * @param {Object} editor - The TinyMCE/HugeRTE editor instance
  * @param {Function} callback - Function to call when checklist state changes
  * @returns {Function} - Function to unregister the callback
  *
  * @example
- * // Basic usage - listen to any checklist state change
+ * // Basic usage - listen to checklist state changes for a specific editor
  * import { onChecklistStateChange } from './hugerte_checklist_plugin.js'
  *
- * const unsubscribe = onChecklistStateChange((event) => {
+ * const editor = tinymce.get('my-editor')
+ * const unsubscribe = onChecklistStateChange(editor, (event) => {
+ *     console.log('Editor:', event.editor)
  *     console.log('Item:', event.text)
  *     console.log('Checked:', event.checked)
  *     console.log('Element:', event.element)
@@ -369,7 +382,8 @@ function exitChecklistAndCreateParagraph(editor, liElement) {
  *
  * @example
  * // Save checklist state to a backend when items change
- * onChecklistStateChange((event) => {
+ * const editor = tinymce.get('my-editor')
+ * onChecklistStateChange(editor, (event) => {
  *     fetch('/api/checklist-items', {
  *         method: 'PATCH',
  *         headers: { 'Content-Type': 'application/json' },
@@ -382,19 +396,26 @@ function exitChecklistAndCreateParagraph(editor, liElement) {
  * })
  *
  * @example
- * // Update UI when checklist items change
- * onChecklistStateChange((event) => {
- *     const completedCount = document.querySelectorAll('[data-checked="true"]').length
- *     const totalCount = document.querySelectorAll('.tox-checklist-item').length
+ * // Update UI when checklist items change (scoped to editor)
+ * const editor = tinymce.get('my-editor')
+ * onChecklistStateChange(editor, (event) => {
+ *     const body = event.editor.getBody()
+ *     const completedCount = body.querySelectorAll('[data-checked="true"]').length
+ *     const totalCount = body.querySelectorAll('.tox-checklist-item').length
  *     document.getElementById('progress').textContent = `${completedCount}/${totalCount}`
  * })
  */
-export function onChecklistStateChange(callback) {
-    checklistStateChangeCallbacks.push(callback)
+export function onChecklistStateChange(editor, callback) {
+    const callbacks = getEditorCallbacks(editor)
+    callbacks.push(callback)
 
     // Return an unregister function
     return () => {
-        checklistStateChangeCallbacks = checklistStateChangeCallbacks.filter((cb) => cb !== callback)
+        const currentCallbacks = getEditorCallbacks(editor)
+        const index = currentCallbacks.indexOf(callback)
+        if (index > -1) {
+            currentCallbacks.splice(index, 1)
+        }
     }
 }
 
